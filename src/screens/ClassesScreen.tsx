@@ -1,29 +1,29 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
-  View,
-  Text,
-  FlatList,
   ActivityIndicator,
-  RefreshControl,
-  TouchableOpacity,
-  Linking,
   Alert,
-  TextInput
+  FlatList,
+  Linking,
+  RefreshControl,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {Ionicons} from '@expo/vector-icons';
 import Fuse from 'fuse.js';
-import { fetchClasses } from '../services/api';
-import { RootstechClass } from '../types';
-import { styles } from './ClassesScreen.styles';
+import {fetchClasses} from '../services/api';
+import {RootstechClass} from '../types';
+import {styles} from './ClassesScreen.styles';
 
-type LocationFilter = 'online' | 'in-person';
+type LocationFilter = 'online' | 'person';
 
 export default function ClassesScreen() {
   const [classes, setClasses] = useState<RootstechClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [locationFilter, setLocationFilter] = useState<LocationFilter>('in-person');
+  const [locationFilter, setLocationFilter] = useState<LocationFilter>('person');
   const flatListRef = useRef<FlatList>(null);
 
   // Filter classes by location first
@@ -32,21 +32,7 @@ export default function ClassesScreen() {
 
     const filtered = classes.filter(classItem => {
       const location = classItem.Location.toLowerCase();
-      let shouldInclude = false;
-
-      if (locationFilter === 'online') {
-        // Show Online, Online Replay, and "In Person and Online"
-        shouldInclude = location.includes('online');
-      } else {
-        // in-person: Show In Person and "In Person and Online"
-        shouldInclude = location.includes('in person');
-      }
-
-      if (!shouldInclude) {
-        console.log(`Filtered OUT: ${classItem.Title} | Location: ${classItem.Location}`);
-      }
-
-      return shouldInclude;
+      return location.includes(locationFilter);
     });
 
     console.log(`Total classes: ${classes.length}, After filter: ${filtered.length}, Filtered out: ${classes.length - filtered.length}\n`);
@@ -58,9 +44,9 @@ export default function ClassesScreen() {
   const fuse = useMemo(() => {
     return new Fuse(locationFilteredClasses, {
       keys: ['Title', 'Speakers', 'Location', 'Classroom', 'Date', 'Time'],
-      threshold: 0.3, // Lower = stricter matching
       includeScore: true,
-      minMatchCharLength: 2
+      minMatchCharLength: 2,
+      ignoreLocation: true
     });
   }, [locationFilteredClasses]);
 
@@ -70,29 +56,41 @@ export default function ClassesScreen() {
       return locationFilteredClasses;
     }
     const results = fuse.search(searchQuery);
-    return results.map(result => result.item);
+    const resultItems = results.map(result => result.item);
+    console.log("Search query:", searchQuery, "Results found:", resultItems.length);
+    return resultItems;
   }, [locationFilteredClasses, searchQuery, fuse]);
 
-  const loadClasses = async () => {
-    try {
-      const data = await fetchClasses();
-      setClasses(data);
-    } catch (error) {
-      console.error('Error loading classes:', error);
-      Alert.alert('Error', 'Failed to load classes. Please try again.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+  const loadClasses = () => {
+    const subscription = fetchClasses(
+      (data) => {
+        setClasses(data);
+        setLoading(false);
+        setRefreshing(false);
+      },
+      (error) => {
+        console.error('Error loading classes:', error);
+        Alert.alert('Error', 'Failed to load classes. Please try again.');
+        setLoading(false);
+        setRefreshing(false);
+      }
+    );
+
+    return subscription;
   };
 
   useEffect(() => {
-    loadClasses();
+    const subscription = loadClasses();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadClasses();
+    const subscription = loadClasses();
+    // Subscription will be cleaned up automatically when data is loaded
+    // No need to track it for refresh since it's a one-time operation
   };
 
   const openUrl = (url: string) => {
@@ -204,13 +202,13 @@ export default function ClassesScreen() {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            locationFilter === 'in-person' && styles.filterButtonActive
+            locationFilter === 'person' && styles.filterButtonActive
           ]}
-          onPress={() => setLocationFilter('in-person')}
+          onPress={() => setLocationFilter('person')}
         >
           <Text style={[
             styles.filterButtonText,
-            locationFilter === 'in-person' && styles.filterButtonTextActive
+            locationFilter === 'person' && styles.filterButtonTextActive
           ]}>
             In Person
           </Text>

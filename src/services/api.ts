@@ -1,8 +1,8 @@
 import { RootstechClass } from '../types';
-import { CacheLoader } from './cacheLoader';
+import { AsyncCacheLoader, Subscription } from './asyncCacheLoader';
 
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
-const classesCache = new CacheLoader<RootstechClass[]>('rootstech_classes', CACHE_DURATION);
+const classesCache = new AsyncCacheLoader<RootstechClass[]>('rootstech_classes', CACHE_DURATION);
 
 const SESSIONS_URL =
   'https://cms-z.api.familysearch.org/rootstech/api/graphql/delivery/conference?operationName=CalendarDetail&variables=%7B%22profileImage_crop%22%3Atrue%2C%22profileImage_height%22%3A250%2C%22profileImage_width%22%3A250%2C%22promoImage_crop%22%3Afalse%2C%22promoImage_height%22%3A288%2C%22promoImage_width%22%3A512%2C%22thumbnailImage_crop%22%3Afalse%2C%22thumbnailImage_height%22%3A288%2C%22thumbnailImage_width%22%3A512%2C%22id%22%3A%22%2Fcalendar%2Fsessions%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22b87427ca63a55636901cbb17e71dd57e74f7e81cc890feb6468227c97d7123de%22%7D%7D';
@@ -160,6 +160,9 @@ const fetchFreshClasses = async (): Promise<RootstechClass[]> => {
   return uniqueClasses;
 };
 
-export const fetchClasses = async (): Promise<RootstechClass[]> => {
-  return classesCache.loadWithCache(fetchFreshClasses);
+export const fetchClasses = (
+  onData: (data: RootstechClass[]) => void,
+  onError?: (error: Error) => void
+): Subscription => {
+  return classesCache.loadWithCache(fetchFreshClasses, onData, onError);
 };
