@@ -11,19 +11,42 @@ import {
 } from 'react-native';
 import Mapbox from '@maplibre/maplibre-react-native';
 import * as ExpoLocation from 'expo-location';
-import { showLocation } from 'react-native-map-link';
 import { Location } from '../types';
 import { styles } from './MapScreen.styles';
 
 const LOCATIONS: Location[] = [
-  { name: 'Classroom 155', latitude: 40.76877678903509, longitude: -111.89612638583064 },
-  { name: 'Classroom 151', latitude: 40.76761483311832, longitude: -111.89492475626699 },
-  { name: 'Classroom 150', latitude: 40.76742388037703, longitude: -111.89493548510237 },
-  { name: 'Ballroom H', latitude: 40.76638070271472, longitude: -111.89495965220146 },
-  { name: 'Ballroom B', latitude: 40.766822042287295, longitude: -111.89497572729124 },
-  { name: 'Ballrooms A,E,G', latitude: 40.76656028261861, longitude: -111.89446132441859 },
-  { name: 'Main Stage', latitude: 40.765841570073285, longitude: -111.89539696893233 },
-  { name: 'Expo Hall', latitude: 40.76701859236386, longitude: -111.8952862676633 }
+  // 100 series rooms (1st floor)
+  { name: '150', latitude: 40.76850, longitude: -111.89600 },
+  { name: '151', latitude: 40.76850, longitude: -111.89560 },
+  { name: '155 A', latitude: 40.76850, longitude: -111.89520 },
+  { name: '155 BC', latitude: 40.76850, longitude: -111.89480 },
+  { name: '155 D', latitude: 40.76850, longitude: -111.89440 },
+  { name: '155 EF', latitude: 40.76850, longitude: -111.89400 },
+
+  // 200 series rooms (2nd floor)
+  { name: '250', latitude: 40.76800, longitude: -111.89600 },
+  { name: '251', latitude: 40.76800, longitude: -111.89560 },
+  { name: '255 A', latitude: 40.76800, longitude: -111.89520 },
+  { name: '255 BC', latitude: 40.76800, longitude: -111.89480 },
+  { name: '255 D', latitude: 40.76800, longitude: -111.89440 },
+  { name: '255 EF', latitude: 40.76800, longitude: -111.89400 },
+  { name: '257 A', latitude: 40.76780, longitude: -111.89600 },
+  { name: '257 B', latitude: 40.76780, longitude: -111.89560 },
+  { name: '260 B', latitude: 40.76780, longitude: -111.89520 },
+
+  // 300 series rooms (3rd floor)
+  { name: '355 BC', latitude: 40.76750, longitude: -111.89600 },
+  { name: '355 EF', latitude: 40.76750, longitude: -111.89560 },
+
+  // Ballrooms
+  { name: 'Ballroom A', latitude: 40.76700, longitude: -111.89600 },
+  { name: 'Ballroom B', latitude: 40.76700, longitude: -111.89560 },
+  { name: 'Ballroom E', latitude: 40.76700, longitude: -111.89520 },
+  { name: 'Ballroom G', latitude: 40.76700, longitude: -111.89480 },
+  { name: 'Ballroom H', latitude: 40.76700, longitude: -111.89440 },
+
+  // Halls
+  { name: 'Hall E', latitude: 40.76650, longitude: -111.89520 }
 ];
 
 // Function to create a box around a point (approximate room size)
@@ -107,11 +130,20 @@ export default function MapScreen() {
         });
         setLocation(currentLocation);
 
+        console.log('Current user location:', {
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          altitude: currentLocation.coords.altitude,
+          accuracy: currentLocation.coords.accuracy,
+          timestamp: new Date(currentLocation.timestamp).toISOString()
+        });
+
         const inside = checkIfInsideSaltPalace(
           currentLocation.coords.latitude,
           currentLocation.coords.longitude
         );
         setIsInsideSaltPalace(inside);
+        console.log('Inside Salt Palace:', inside);
       } catch (error) {
         console.error('Error getting location:', error);
         setErrorMsg('Could not get current location');
@@ -122,31 +154,54 @@ export default function MapScreen() {
   }, []);
 
   const openDirections = (destination: Location) => {
-    showLocation({
-      latitude: destination.latitude,
-      longitude: destination.longitude,
-      title: destination.name,
-      dialogTitle: 'Open with',
-      dialogMessage: 'Select an app to get directions',
-      cancelText: 'Cancel'
-    }).catch((err) => {
-      console.error('Error opening maps:', err);
-      Alert.alert('Error', 'Could not open maps application');
+    const { latitude, longitude, name } = destination;
+    const scheme = Platform.select({
+      ios: 'maps:0,0?q=',
+      android: 'geo:0,0?q='
     });
+    const latLng = `${latitude},${longitude}`;
+    const url = Platform.select({
+      ios: `${scheme}${name}@${latLng}`,
+      android: `${scheme}${latLng}(${name})`
+    });
+
+    if (url) {
+      Linking.openURL(url).catch((err) => {
+        console.error('Error opening maps:', err);
+        // Fallback to Google Maps web
+        const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${latLng}`;
+        Linking.openURL(googleMapsUrl).catch(() => {
+          Alert.alert('Error', 'Could not open maps application');
+        });
+      });
+    }
   };
 
   const openDirectionsToSaltPalace = () => {
-    showLocation({
-      latitude: SALT_PALACE_CENTER[1],
-      longitude: SALT_PALACE_CENTER[0],
-      title: 'Salt Palace Convention Center',
-      dialogTitle: 'Get Directions',
-      dialogMessage: 'Select an app to get directions to the Salt Palace',
-      cancelText: 'Cancel'
-    }).catch((err) => {
-      console.error('Error opening maps:', err);
-      Alert.alert('Error', 'Could not open maps application');
+    const latitude = SALT_PALACE_CENTER[1];
+    const longitude = SALT_PALACE_CENTER[0];
+    const label = 'Salt Palace Convention Center';
+
+    const scheme = Platform.select({
+      ios: 'maps:0,0?q=',
+      android: 'geo:0,0?q='
     });
+    const latLng = `${latitude},${longitude}`;
+    const url = Platform.select({
+      ios: `${scheme}${label}@${latLng}`,
+      android: `${scheme}${latLng}(${label})`
+    });
+
+    if (url) {
+      Linking.openURL(url).catch((err) => {
+        console.error('Error opening maps:', err);
+        // Fallback to Google Maps web
+        const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${latLng}`;
+        Linking.openURL(googleMapsUrl).catch(() => {
+          Alert.alert('Error', 'Could not open maps application');
+        });
+      });
+    }
   };
 
   if (loading) {
